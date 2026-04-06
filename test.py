@@ -16,6 +16,23 @@ def calculate_psnr(img1, img2):
         return float('inf') 
     return 10 * math.log10(1.0 / mse)
 
+def calculate_metrics(pred, target, threshold=0.5):
+    # 이진화 처리 (0.5 기준)
+    pred_bin = (pred > threshold).float()
+    target_bin = (target > threshold).float()
+    
+    intersection = (pred_bin * target_bin).sum()
+    sum_pred = pred_bin.sum()
+    sum_target = target_bin.sum()
+    
+    # Dice Coefficient (F1-score)
+    dice = (2. * intersection) / (sum_pred + sum_target + 1e-8)
+    
+    # IoU (Jaccard Index)
+    iou = intersection / (sum_pred + sum_target - intersection + 1e-8)
+    
+    return dice.item(), iou.item()
+
 def test():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"테스트 환경: {device}")
@@ -82,10 +99,13 @@ def test():
     psnr_nearest = calculate_psnr(lr_edge_tensor_only, hr_tensor)
     psnr_unet = calculate_psnr(output_sr_tensor, hr_tensor)
     
-    print("\n" + "=" * 50)
-    print(f"👉 단순 픽셀 윤곽선 PSNR : {psnr_nearest:.2f} dB")
-    print(f"👉 V2. 하이브리드(Dice) 모델 PSNR    : {psnr_unet:.2f} dB")
-    print("=" * 50)
+    dice_unet, iou_unet = calculate_metrics(output_sr_tensor, hr_tensor)
+    dice_lr, iou_lr = calculate_metrics(lr_edge_tensor_only, hr_tensor)
+    
+    print("\n" + "=" * 60)
+    print(f"👉 [Baseline]  PSNR: {psnr_nearest:.2f} dB | F1: {dice_lr:.4f} | IoU: {iou_lr:.4f}")
+    print(f"👉 [UNet Deep] PSNR: {psnr_unet:.2f} dB | F1: {dice_unet:.4f} | IoU: {iou_unet:.4f}")
+    print("=" * 60)
     
     to_pil = transforms.ToPILImage()
     
